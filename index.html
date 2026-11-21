@@ -52,13 +52,10 @@ h1{font-size:clamp(34px,9vw,48px);line-height:1;margin:25px 0 4px;letter-spacing
 .feedback.good{color:#39744c}.feedback.bad{color:#ad6257}
 .hidden{display:none!important}
 .footer{margin-top:auto;padding-top:24px;text-align:center;color:#9a9085;font-size:12px;letter-spacing:1px}
+#fireworks{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:8}
 .dance-floor{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:5}
 .dancer{position:absolute;bottom:-70px;font-size:clamp(28px,8vw,42px);animation:party 2.2s ease-out forwards}
 @keyframes party{0%{transform:translateY(0) rotate(0) scale(.5);opacity:0}15%{opacity:1}50%{transform:translateY(-48vh) rotate(20deg) scale(1.15)}100%{transform:translateY(-110vh) rotate(-25deg) scale(.8);opacity:0}}
-.rabbit{position:absolute;left:50%;top:50%;font-size:clamp(34px,9vw,48px);transform:translate(-50%,-50%);animation:rabbitCircle 1.65s ease-in-out forwards;filter:drop-shadow(1px 2px 0 #fff)}
-.rabbit span{display:block;animation:rabbitBounce .32s ease-in-out infinite alternate}
-@keyframes rabbitCircle{0%{transform:translate(-50%,-50%) translate(0,-105px) scale(.7);opacity:0}10%{opacity:1}20%{transform:translate(-50%,-50%) translate(74px,-74px) scale(1)}30%{transform:translate(-50%,-50%) translate(105px,0) scale(1)}40%{transform:translate(-50%,-50%) translate(74px,74px) scale(1)}50%{transform:translate(-50%,-50%) translate(0,105px) scale(1)}60%{transform:translate(-50%,-50%) translate(-74px,74px) scale(1)}70%{transform:translate(-50%,-50%) translate(-105px,0) scale(1)}80%{transform:translate(-50%,-50%) translate(-74px,-74px) scale(1)}100%{transform:translate(-50%,-50%) translate(0,-105px) scale(.7);opacity:0}}
-@keyframes rabbitBounce{from{translate:0 0}to{translate:0 -13px}}
 .sparkle{position:absolute;font-size:25px;animation:twinkle 1.2s ease-out forwards}
 @keyframes twinkle{0%{transform:scale(.2) rotate(0);opacity:0}35%{opacity:1}100%{transform:scale(1.4) rotate(100deg);opacity:0}}
 @media(min-width:520px){.app{padding-top:34px}.card{padding:30px 32px}}
@@ -88,6 +85,7 @@ h1{font-size:clamp(34px,9vw,48px);line-height:1;margin:25px 0 4px;letter-spacing
   </main>
   <footer class="footer">TAKE YOUR TIME · YOU'VE GOT THIS!</footer>
 </div>
+<canvas id="fireworks" aria-hidden="true"></canvas>
 <div class="dance-floor" id="danceFloor" aria-hidden="true"></div>
 <script>
 const WORDS = `absolute actual adopt amiss anew applesauce astray awful bloodhound capture carefree clump cobweb concern conduct course crystal egret farther fiber fortune fountain gentle glory godfather greenhouse handsome hollow honest joined kingdom liberty limit location loose magnet meaning metal midnight mink mistreat misuse moral motion murder noble observe occur odor oneself operate oriole otherwise pause perfume pollute powder prefer prevent private proper provide recent reduce regular royal rumble sailor scatter scent seize servant shoplift silkworm skyrocket snowstorm sputter steady straight sturdy style surface sweat tangle task tease temple thief thigh tour twice union usual vapor volum wander wealth whenever wound zigzag`.split(/\s+/);
@@ -149,25 +147,60 @@ function cheer(){
   }catch(e){}
 }
 function celebrate(){
-  const floor=$('danceFloor');
-  const bunnies=['🐰','🐇','🐰','🐇','🐰','🐰'];
-  bunnies.forEach((bunny,i)=>{
-    const el=document.createElement('div');
-    el.className='rabbit';
-    el.style.animationDelay=(i*.07)+'s';
-    el.innerHTML='<span>'+bunny+'</span>';
-    floor.appendChild(el);
-    setTimeout(()=>el.remove(),2300);
-  });
-  for(let i=0;i<12;i++){
-    const el=document.createElement('span');el.className='sparkle';
-    el.textContent=['✿','✨','♡','⭐'][i%4];
-    el.style.left=(Math.random()*90+5)+'%';
-    el.style.top=(Math.random()*72+8)+'%';
-    el.style.animationDelay=(Math.random()*.35)+'s';
-    floor.appendChild(el);
-    setTimeout(()=>el.remove(),1800);
+  const canvas=$('fireworks');
+  const ctx=canvas.getContext('2d');
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  const w=window.innerWidth, h=window.innerHeight;
+  canvas.width=w*dpr;canvas.height=h*dpr;
+  canvas.style.width=w+'px';canvas.style.height=h+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+
+  const colors=['#F2A497','#F6D27A','#A8D3E6','#B9DAA5','#F7B7D2','#D9B7E8','#FFF1C7'];
+  const particles=[];
+  const bursts=[
+    {x:w*.5,y:h*.34,delay:0,count:115,radius:Math.min(w,h)*.31},
+    {x:w*.25,y:h*.48,delay:230,count:85,radius:Math.min(w,h)*.23},
+    {x:w*.75,y:h*.45,delay:430,count:95,radius:Math.min(w,h)*.25}
+  ];
+  let started=performance.now(),last=started,raf;
+  function burst(b){
+    for(let i=0;i<b.count;i++){
+      const a=Math.PI*2*i/b.count+(Math.random()-.5)*.08;
+      const speed=(.9+Math.random()*.9)*b.radius/34;
+      particles.push({
+        x:b.x,y:b.y,vx:Math.cos(a)*speed,vy:Math.sin(a)*speed,
+        life:65+Math.random()*35,max:100,
+        size:2+Math.random()*3,color:colors[Math.floor(Math.random()*colors.length)],
+        sparkle:Math.random()>.55
+      });
+    }
   }
+  bursts.forEach(b=>setTimeout(()=>burst(b),b.delay));
+  function frame(now){
+    const dt=Math.min((now-last)/16.67,2);last=now;
+    ctx.clearRect(0,0,w,h);
+    for(let i=particles.length-1;i>=0;i--){
+      const p=particles[i];
+      p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=.035*dt;p.vx*=.992;p.vy*=.992;p.life-=dt;
+      if(p.life<=0){particles.splice(i,1);continue}
+      const alpha=Math.min(1,p.life/22);
+      ctx.globalAlpha=alpha;
+      ctx.fillStyle=p.color;
+      ctx.shadowColor=p.color;ctx.shadowBlur=p.sparkle?15:8;
+      ctx.beginPath();ctx.arc(p.x,p.y,p.size*(.65+alpha*.35),0,Math.PI*2);ctx.fill();
+      if(p.sparkle && Math.random()>.88){
+        ctx.globalAlpha=alpha*.8;ctx.fillRect(p.x-1,p.y-7,2,14);ctx.fillRect(p.x-7,p.y-1,14,2);
+      }
+    }
+    ctx.globalAlpha=1;ctx.shadowBlur=0;
+    if(now-started<2600 || particles.length){
+      raf=requestAnimationFrame(frame);
+    }else{
+      cancelAnimationFrame(raf);ctx.clearRect(0,0,w,h);
+    }
+  }
+  if(raf)cancelAnimationFrame(raf);
+  raf=requestAnimationFrame(frame);
 }
 function check(){
   if(locked)return;
